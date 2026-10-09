@@ -105,3 +105,27 @@ test('an interrupted turn gets no celebration', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: /engine band/ })).toBeDefined()
   await ui.unmount()
 })
+
+test('agents spawned together get different colors', async ($, on) => {
+  mock.clock(on)
+  engineBand(on)
+  let next = 0
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: `a${(next += 1)}` }))
+
+  const spawn = (description: string) =>
+    $.agent.spawn({
+      tool_use_id: description,
+      prompt: 'wait',
+      description,
+      subagentType: 'general-purpose',
+      provider: { plugin: 'engine', tier: 'core' },
+      parentModel: 'claude-opus-5-5',
+    } as never)
+  await Promise.all([spawn('one'), spawn('two'), spawn('three')])
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props: bandProps(false) })
+  const minis = await ui.findAll({ type: 'Text', text: /▐/ })
+  const colors = new Set(minis.map(mini => mini.props.color).filter(color => color !== 'claude'))
+  expect(colors.size).toBe(3)
+  await ui.unmount()
+})
