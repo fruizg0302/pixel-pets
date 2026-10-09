@@ -8,14 +8,7 @@ A [Claude Code](https://claude.com/claude-code) mod that keeps you company while
 - **Idle with background agents still running**, the big Claude naps (`z`) while the small pets keep hopping.
 - **Fully idle**, the band disappears and the animation timer stops.
 
-```
- ▐▛███▜▌
-▝▜█████▛▘
-  ▘▘ ▝▝
- ▐▛█▜▌           ▐▛█▜▌
- ▘ ▘             ▝ ▝
-Scout files      Run tests
-```
+![Claude walking above the prompt while two subagent pets hop below it](docs/working.gif)
 
 ## Install
 
