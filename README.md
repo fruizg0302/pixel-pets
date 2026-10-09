@@ -10,6 +10,8 @@ A [Claude Code](https://claude.com/claude-code) mod that keeps you company while
 
 ![Claude walking above the prompt while two subagent pets hop below it](docs/working.gif)
 
+![Claude jumping with its arms up amid sparkles next to a green "Ta-da!" after a turn finishes](docs/celebration.gif)
+
 ## Install
 
 Type this at the prompt of a Claude Code terminal session:
