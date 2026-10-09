@@ -4,6 +4,7 @@ A [Claude Code](https://claude.com/claude-code) mod that keeps you company while
 
 - **While a turn runs**, Claude's pixel mascot walks back and forth above the prompt, swinging its arms and blinking.
 - **Each subagent** gets a small pet of its own color (8 colors, assigned in turn), hopping under the big one with the agent's task beside it. A pet leaves when its agent finishes.
+- **When a turn finishes**, Claude jumps with its arms up amid colored sparkles and a "Ta-da!" for about three seconds. An interrupted turn gets no party.
 - **Idle with background agents still running**, the big Claude naps (`z`) while the small pets keep hopping.
 - **Fully idle**, the band disappears and the animation timer stops.
 
@@ -35,7 +36,7 @@ Answer `y` to add the marketplace, then pick the user scope with Enter. The pets
 | `ui.render` on `AbovePrompt` | Draws the big pet and the subagent pets in the band above the prompt |
 | `turn.start` | Starts a 200 ms animation timer |
 | `agent.spawn` | Adds a pet for the new subagent |
-| `turn.complete` | Removes a subagent's pet when its turn ends |
+| `turn.complete` | Removes a subagent's pet when its turn ends, or starts the celebration when a main turn finishes |
 | `session.end` | Clears the pets |
 
 The timer stops on its own once no turn is running and no subagent is alive.

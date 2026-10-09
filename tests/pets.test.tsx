@@ -68,3 +68,40 @@ test('the big pet shows while a turn runs', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: /▐/ })).toBeDefined()
   await ui.unmount()
 })
+
+function mainTurnComplete(reason: 'answer' | 'aborted') {
+  return {
+    answer: 'done',
+    durationMs: 10,
+    isAborted: reason === 'aborted',
+    turnId: 'main-turn',
+    reason,
+  } as never
+}
+
+test('a finished turn gets a celebration', async ($, on) => {
+  mock.clock(on)
+  engineBand(on)
+  on('turn.complete', () => ({ text: '' }))
+
+  await $.turn.complete(mainTurnComplete('answer'))
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...BAND, surface, props: bandProps(false) })
+    expect(await ui.find({ type: 'Text', text: /Ta-da/ })).toBeDefined()
+    await ui.unmount()
+  }
+})
+
+test('an interrupted turn gets no celebration', async ($, on) => {
+  mock.clock(on)
+  engineBand(on)
+  on('turn.complete', () => ({ text: '' }))
+
+  await $.turn.complete(mainTurnComplete('aborted'))
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props: bandProps(false) })
+  expect(await ui.find({ type: 'Text', text: /Ta-da/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /engine band/ })).toBeDefined()
+  await ui.unmount()
+})

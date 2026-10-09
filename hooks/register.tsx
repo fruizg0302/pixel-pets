@@ -5,10 +5,14 @@ import type { Pet } from '../types'
 
 const frame = atom({ plugin: 'pixel-pets', key: 'frame' } as const, 0)
 const pets = atom({ plugin: 'pixel-pets', key: 'pets' } as const, [] as Pet[])
+const celebrateUntil = atom({ plugin: 'pixel-pets', key: 'celebrateUntil' } as const, -1)
 
 const TICK_MS = 200
 const STALE_MS = 2 * 60 * 60 * 1000
 const PET_COLORS = ['#6A9BCC', '#7FB069', '#A78BFA', '#E879A6', '#2DD4BF', '#E5C07B', '#E06C75', '#61AFEF']
+
+const CELEBRATION_FRAMES = 14
+const SPARKLES = ['✦', '·', '*', '+', '✧']
 
 const BIG_WIDTH = 9
 const LABEL_WIDTH = 14
@@ -24,6 +28,25 @@ function bigPet(n: number, isWorking: boolean): string[] {
     step ? '▝▜█████▛▘' : '▗▟█████▙▖',
     step ? '  ▘▘ ▝▝  ' : '  ▝▝ ▘▘  ',
   ]
+}
+
+function partyPet(n: number): string[] {
+  const isUp = n % 2 === 0
+  return [
+    isUp ? '▝▖▐▛███▜▌▗▘' : '  ▐▛███▜▌  ',
+    isUp ? '  ▜█████▛  ' : ' ▗▟█████▙▖ ',
+    '   ▘▘ ▝▝   ',
+  ]
+}
+
+type Sparkle = { glyph: string; color: string }
+
+function sparkleRow(n: number, width: number): Sparkle[] {
+  return Array.from({ length: width }, (_, column) => {
+    const seed = (column * 7 + n * 13) % 11
+    const glyph = seed < 2 ? (SPARKLES[(column + n) % SPARKLES.length] ?? '·') : ' '
+    return { glyph, color: PET_COLORS[(column + n) % PET_COLORS.length] ?? '#E5C07B' }
+  })
 }
 
 function miniPet(n: number): string[] {
@@ -42,17 +65,19 @@ function truncate(text: string, width: number): string {
   return text.length <= width ? text : `${text.slice(0, width - 1)}…`
 }
 
-const ticking: { timer: Timer | null; isWorking: boolean; spawned: number } = {
+const ticking: { timer: Timer | null; isWorking: boolean; spawned: number; offset: number } = {
   timer: null,
   isWorking: false,
   spawned: 0,
+  offset: 0,
 }
 
 async function tick($: EngineInterface) {
   const now = await $.clock.now()
   const isFresh = (pet: Pet) => now - pet.startedAt < STALE_MS
   const running = (await read($, pets)).filter(isFresh)
-  if (!ticking.isWorking && running.length === 0) {
+  const isCelebrating = (await read($, frame)) < (await read($, celebrateUntil))
+  if (!ticking.isWorking && running.length === 0 && !isCelebrating) {
     ticking.timer?.cancel()
     ticking.timer = null
   }
@@ -103,6 +128,10 @@ export const register: Register = on => {
     const { agentId } = e
     if (agentId !== undefined) {
       await update($, pets, current => current.filter(pet => pet.id !== agentId))
+    } else if (e.reason === 'answer') {
+      const n = await read($, frame)
+      await update($, celebrateUntil, () => n + CELEBRATION_FRAMES)
+      ensureTicking($)
     }
     return next(e)
   })
@@ -116,24 +145,43 @@ export const register: Register = on => {
     const n = await read($, frame)
     const running = await read($, pets)
     const isWorking = e.props.isWorking
+    const isCelebrating = !isWorking && n < (await read($, celebrateUntil))
     ticking.isWorking = isWorking
 
-    if (e.props.hasSurvey || (!isWorking && running.length === 0)) {
+    if (e.props.hasSurvey || (!isWorking && !isCelebrating && running.length === 0)) {
       return next(e)
     }
 
     const { Box, Text } = $.ui.resolve(e)
     const track = Math.max(0, Math.min(e.props.bodyColumns, 60) - BIG_WIDTH - 2)
-    const indent = ' '.repeat(isWorking ? walkOffset(n, track) : 0)
+    if (isWorking) ticking.offset = walkOffset(n, track)
+    const indent = ' '.repeat(isWorking || isCelebrating ? ticking.offset : 0)
+
+    const sparkles = (key: string) => (
+      <Box key={key} flexDirection="row">
+        <Text>{indent}</Text>
+        {sparkleRow(n, 11).map((sparkle, column) => (
+          <Text key={`${key}-${column}`} color={sparkle.color}>
+            {sparkle.glyph}
+          </Text>
+        ))}
+      </Box>
+    )
+    const isAirborne = n % 4 < 2
+    const pet = isCelebrating ? partyPet(n) : bigPet(n, isWorking)
+    const petRows = pet.map((line, row) => (
+      <Text key={`big-${row}`} color="claude" wrap="truncate">
+        {indent}
+        {line}
+        {isCelebrating && row === 1 ? <Text color="success"> Ta-da!</Text> : null}
+      </Text>
+    ))
 
     return (
       <Box flexDirection="column">
-        {bigPet(n, isWorking).map((line, row) => (
-          <Text key={`big-${row}`} color="claude" wrap="truncate">
-            {indent}
-            {line}
-          </Text>
-        ))}
+        {isCelebrating && !isAirborne && sparkles('sparkles-top')}
+        {petRows}
+        {isCelebrating && isAirborne && sparkles('sparkles-bottom')}
         {running.length > 0 && (
           <Box flexDirection="row" gap={2}>
             {running.map((pet, index) => {
