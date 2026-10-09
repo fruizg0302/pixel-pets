@@ -1,0 +1,11 @@
+{
+  "name": "pixel-pets",
+  "version": "0.1.0",
+  "description": "An animated Claude pet above the prompt while Claude works, plus a small colored pet for each running subagent",
+  "author": {
+    "name": "Fernando Ruiz"
+  },
+  "types": "./types/index.d.ts",
+  "license": "MIT",
+  "repository": "https://github.com/fruizg0302/pixel-pets"
+}

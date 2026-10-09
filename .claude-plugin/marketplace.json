@@ -1,0 +1,13 @@
+{
+  "name": "pixel-pets",
+  "description": "Animated pixel pets for Claude Code: a walking Claude while it works, plus a colored pet per subagent",
+  "owner": {
+    "name": "Fernando Ruiz"
+  },
+  "plugins": [
+    {
+      "name": "pixel-pets",
+      "source": "./"
+    }
+  ]
+}
