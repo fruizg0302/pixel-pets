@@ -54,6 +54,12 @@ function miniPet(n: number): string[] {
   return [isBlinking ? '▐███▌' : '▐▛█▜▌', n % 2 === 0 ? ' ▘ ▘ ' : ' ▝ ▝ ']
 }
 
+function freeColor(current: Pet[]): string {
+  const taken = new Set(current.map(pet => pet.color))
+  const free = PET_COLORS.find(color => !taken.has(color))
+  return free ?? PET_COLORS[current.length % PET_COLORS.length] ?? '#6A9BCC'
+}
+
 function walkOffset(n: number, track: number): number {
   if (track <= 0) return 0
   const period = track * 2
@@ -65,10 +71,9 @@ function truncate(text: string, width: number): string {
   return text.length <= width ? text : `${text.slice(0, width - 1)}…`
 }
 
-const ticking: { timer: Timer | null; isWorking: boolean; spawned: number; offset: number } = {
+const ticking: { timer: Timer | null; isWorking: boolean; offset: number } = {
   timer: null,
   isWorking: false,
-  spawned: 0,
   offset: 0,
 }
 
@@ -110,15 +115,14 @@ export const register: Register = on => {
 
   on('agent.spawn', async ($, e, next) => {
     const result = await next(e)
-    if (result.deny === undefined && result.agentId !== undefined) {
-      const pet: Pet = {
-        id: result.agentId,
-        label: e.description || e.subagentType,
-        color: PET_COLORS[ticking.spawned % PET_COLORS.length] ?? '#6A9BCC',
-        startedAt: await $.clock.now(),
-      }
-      ticking.spawned += 1
-      await update($, pets, current => [...current, pet])
+    const { agentId } = result
+    if (result.deny === undefined && agentId !== undefined) {
+      const startedAt = await $.clock.now()
+      const label = e.description || e.subagentType
+      await update($, pets, current => [
+        ...current,
+        { id: agentId, label, color: freeColor(current), startedAt },
+      ])
       ensureTicking($)
     }
     return result
