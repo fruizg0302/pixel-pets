@@ -17,6 +17,8 @@ const CELEBRATION_FRAMES = 14
 const SPARKLES = ['✦', '·', '*', '+', '✧']
 
 const BIG_WIDTH = 9
+const PARTY_WIDTH = 11
+const TADA_WIDTH = ' Ta-da!'.length
 const LABEL_WIDTH = 14
 
 const CLAUDE_ORANGE = '#D97757'
@@ -195,7 +197,10 @@ export const register: Register = on => {
     const elements = $.ui.resolve(e)
     const { Box, Text } = elements
     const Svg = e.surface !== 'terminal' && 'Svg' in elements ? elements.Svg : undefined
-    const track = Math.max(0, Math.min(e.props.bodyColumns, 60) - BIG_WIDTH - 2)
+    const track =
+      Svg === undefined
+        ? Math.max(0, Math.min(e.props.bodyColumns, 60) - BIG_WIDTH - 2)
+        : Math.max(0, e.props.bodyColumns - PARTY_WIDTH - TADA_WIDTH)
     if (isWorking) ticking.offset = walkOffset(n, track)
     const offset = isWorking || isCelebrating ? ticking.offset : 0
     const indent = ' '.repeat(offset)
