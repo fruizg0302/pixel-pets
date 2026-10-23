@@ -2,6 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Pet } from '../types'
+import { layersWidth, quadrantPixels, sparklePixels, spriteSvg } from './sprites'
+import type { Layer } from './sprites'
 
 const frame = atom({ plugin: 'pixel-pets', key: 'frame' } as const, 0)
 const pets = atom({ plugin: 'pixel-pets', key: 'pets' } as const, [] as Pet[])
@@ -15,7 +17,16 @@ const CELEBRATION_FRAMES = 14
 const SPARKLES = ['✦', '·', '*', '+', '✧']
 
 const BIG_WIDTH = 9
+const PARTY_WIDTH = 11
+const TADA_WIDTH = ' Ta-da!'.length
 const LABEL_WIDTH = 14
+
+const CLAUDE_ORANGE = '#D97757'
+const BIG_PIXEL = { pixelWidth: 4, pixelHeight: 7 }
+const MINI_PIXEL = { pixelWidth: 3, pixelHeight: 5 }
+const PET_ROWS = 6
+const SPARKLE_ROWS = 3
+const MINI_ROWS = 5
 
 function bigPet(n: number, isWorking: boolean): string[] {
   if (!isWorking) {
@@ -52,6 +63,33 @@ function sparkleRow(n: number, width: number): Sparkle[] {
 function miniPet(n: number): string[] {
   const isBlinking = n % 23 === 0
   return [isBlinking ? '▐███▌' : '▐▛█▜▌', n % 2 === 0 ? ' ▘ ▘ ' : ' ▝ ▝ ']
+}
+
+/**
+ * The big pet's frame as pixels for surfaces that draw SVG: the walk offset
+ * and the celebration's jump and sparkles go into the drawing itself, so the
+ * pet moves by whole pixels instead of by spaces of the surface's font.
+ */
+function bigPetSvg(lines: string[], n: number, offset: number, isCelebrating: boolean) {
+  const x = offset * 2
+  const isAirborne = n % 4 < 2
+  const petY = isCelebrating ? (isAirborne ? 1 : SPARKLE_ROWS) : 0
+  const layers: Layer[] = [{ pixels: quadrantPixels(lines), color: CLAUDE_ORANGE, x, y: petY }]
+  if (isCelebrating) {
+    const sparkleY = isAirborne ? PET_ROWS + 1 : 0
+    sparkleRow(n, 11).forEach((sparkle, column) => {
+      if (sparkle.glyph === ' ') return
+      layers.push({ pixels: sparklePixels(sparkle.glyph), color: sparkle.color, x: x + column * 2, y: sparkleY })
+    })
+  }
+  const rows = isCelebrating ? PET_ROWS + SPARKLE_ROWS + 1 : PET_ROWS
+  return spriteSvg(layers, { columns: layersWidth(layers), rows, ...BIG_PIXEL })
+}
+
+/** A subagent pet as pixels, hopping up a row instead of sideways. */
+function miniPetSvg(hop: number, color: string) {
+  const layers: Layer[] = [{ pixels: quadrantPixels(miniPet(hop)), color, x: 0, y: hop % 4 < 2 ? 0 : 1 }]
+  return spriteSvg(layers, { columns: layersWidth(layers), rows: MINI_ROWS, ...MINI_PIXEL })
 }
 
 function freeColor(current: Pet[]): string {
@@ -156,10 +194,16 @@ export const register: Register = on => {
       return next(e)
     }
 
-    const { Box, Text } = $.ui.resolve(e)
-    const track = Math.max(0, Math.min(e.props.bodyColumns, 60) - BIG_WIDTH - 2)
+    const elements = $.ui.resolve(e)
+    const { Box, Text } = elements
+    const Svg = e.surface !== 'terminal' && 'Svg' in elements ? elements.Svg : undefined
+    const track =
+      Svg === undefined
+        ? Math.max(0, Math.min(e.props.bodyColumns, 60) - BIG_WIDTH - 2)
+        : Math.max(0, e.props.bodyColumns - PARTY_WIDTH - TADA_WIDTH)
     if (isWorking) ticking.offset = walkOffset(n, track)
-    const indent = ' '.repeat(isWorking || isCelebrating ? ticking.offset : 0)
+    const offset = isWorking || isCelebrating ? ticking.offset : 0
+    const indent = ' '.repeat(offset)
 
     const sparkles = (key: string) => (
       <Box key={key} flexDirection="row">
@@ -173,31 +217,50 @@ export const register: Register = on => {
     )
     const isAirborne = n % 4 < 2
     const pet = isCelebrating ? partyPet(n) : bigPet(n, isWorking)
-    const petRows = pet.map((line, row) => (
-      <Text key={`big-${row}`} color="claude" wrap="truncate">
-        {indent}
-        {line}
-        {isCelebrating && row === 1 ? <Text color="success"> Ta-da!</Text> : null}
-      </Text>
-    ))
+    const glyphRows = () => [
+      isCelebrating && !isAirborne && sparkles('sparkles-top'),
+      ...pet.map((line, row) => (
+        <Text key={`big-${row}`} color="claude" wrap="truncate">
+          {indent}
+          {line}
+          {isCelebrating && row === 1 ? <Text color="success"> Ta-da!</Text> : null}
+        </Text>
+      )),
+      isCelebrating && isAirborne && sparkles('sparkles-bottom'),
+    ]
+    const pixelRow = (Pixels: NonNullable<typeof Svg>) => {
+      const sprite = bigPetSvg(pet, n, offset, isCelebrating)
+      return (
+        <Box key="big" flexDirection="row" alignItems="center">
+          <Pixels source={sprite.source} width={sprite.width} height={sprite.height} alt="Claude" />
+          {isCelebrating ? <Text color="success"> Ta-da!</Text> : null}
+          {!isWorking && !isCelebrating ? <Text color="claude"> z</Text> : null}
+        </Box>
+      )
+    }
+    const miniRows = (pet: Pet, hop: number) => {
+      if (Svg === undefined) {
+        return miniPet(hop).map((line, row) => (
+          <Text key={`${pet.id}-${row}`} color={pet.color}>
+            {hop % 4 < 2 ? ' ' : '  '}
+            {line}
+          </Text>
+        ))
+      }
+      const sprite = miniPetSvg(hop, pet.color)
+      return <Svg source={sprite.source} width={sprite.width} height={sprite.height} alt={`${pet.label} pet`} />
+    }
 
     return (
       <Box flexDirection="column">
-        {isCelebrating && !isAirborne && sparkles('sparkles-top')}
-        {petRows}
-        {isCelebrating && isAirborne && sparkles('sparkles-bottom')}
+        {Svg === undefined ? glyphRows() : pixelRow(Svg)}
         {running.length > 0 && (
           <Box flexDirection="row" gap={2}>
             {running.map((pet, index) => {
               const hop = n + index * 3
               return (
                 <Box key={pet.id} flexDirection="column" width={LABEL_WIDTH}>
-                  {miniPet(hop).map((line, row) => (
-                    <Text key={`${pet.id}-${row}`} color={pet.color}>
-                      {hop % 4 < 2 ? ' ' : '  '}
-                      {line}
-                    </Text>
-                  ))}
+                  {miniRows(pet, hop)}
                   <Text dimColor wrap="truncate">
                     {truncate(pet.label, LABEL_WIDTH)}
                   </Text>

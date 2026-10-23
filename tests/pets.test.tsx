@@ -129,3 +129,66 @@ test('agents spawned together get different colors', async ($, on) => {
   expect(colors.size).toBe(3)
   await ui.unmount()
 })
+
+test('the desktop draws the big pet as pixels, not block glyphs', async ($, on) => {
+  mock.clock(on)
+  engineBand(on)
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  await $.turn.start({ text: 'hi', turnId: 't' })
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop', props: bandProps(true) })
+  const pet = await ui.find({ type: 'Svg' })
+  expect(pet?.props.source).toContain('<rect')
+  expect(pet?.props.source).toContain('shape-rendering="crispEdges"')
+  expect(await ui.find({ type: 'Text', text: /▐/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the terminal keeps its block glyphs', async ($, on) => {
+  mock.clock(on)
+  engineBand(on)
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  await $.turn.start({ text: 'hi', turnId: 't' })
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props: bandProps(true) })
+  expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /▐/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a subagent pet on the desktop is drawn in its own color', async ($, on) => {
+  mock.clock(on)
+  engineBand(on)
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'a1' }))
+  await $.agent.spawn({
+    tool_use_id: 't1',
+    prompt: 'look around',
+    description: 'Scout files',
+    subagentType: 'Explore',
+    provider: { plugin: 'engine', tier: 'core' },
+    parentModel: 'claude-opus-5-5',
+  } as never)
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop', props: bandProps(false) })
+  const pets = await ui.findAll({ type: 'Svg' })
+  expect(pets.some(pet => String(pet.props.source).includes('fill="#6A9BCC"'))).toBe(true)
+  expect(await ui.find({ type: 'Text', text: /Scout files/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('on the desktop the big pet walks the whole band, not just 60 columns', async ($, on) => {
+  const clock = mock.clock(on)
+  engineBand(on)
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  await $.turn.start({ text: 'hi', turnId: 't' })
+  await clock.advance(80 * 200)
+
+  const ui = await $.ui.mount({
+    ...BAND,
+    surface: 'desktop',
+    props: { ...(bandProps(true) as object), bodyColumns: 140 } as never,
+  })
+  const pet = await ui.find({ type: 'Svg' })
+  expect(Number(pet?.props.width)).toBeGreaterThan(60 * 2 * 4)
+  await ui.unmount()
+})
