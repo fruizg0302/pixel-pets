@@ -36,6 +36,8 @@ Answer `y` to add the marketplace, then pick the user scope with Enter. The pets
 
 The timer stops on its own once no turn is running and no subagent is alive.
 
+The pets are drawn as quadrant block glyphs, which terminals paint as exact pixels. Surfaces that set them as text instead (Claude Code Desktop, VS Code, mobile) get the same frames decoded into crisp SVG pixels by `hooks/sprites.ts`, with the walk, jumps and sparkles drawn into the image.
+
 ## Develop
 
 ```sh
